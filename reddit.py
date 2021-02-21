@@ -9,7 +9,7 @@ from dolby import *
 
 if __name__ == "__main__":
 
-    # Arguments made to pass in: Dobli API key, reddit usernname, password, client id, client secret, bot name, streamable email, streamable password
+    # Arguments made to pass in: Dolbi API key, reddit usernname, password, client id, client secret, bot name, streamable email, streamable password
 
     parser = argparse.ArgumentParser(description="Reddit bot that enhances a post if it is a video hosted on Reddit")
     parser.add_argument("--key", help="Dolby.io Media Processing API Key", default="")
