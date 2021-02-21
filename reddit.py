@@ -8,6 +8,9 @@ from glob import glob
 from dolby import *
 
 if __name__ == "__main__":
+
+    # Arguments made to pass in: Dobli API key, reddit usernname, password, client id, client secret, bot name, streamable email, streamable password
+
     parser = argparse.ArgumentParser(description="Reddit bot that enhances a post if it is a video hosted on Reddit")
     parser.add_argument("--key", help="Dolby.io Media Processing API Key", default="")
     parser.add_argument("--user", help="Username to reddit bot")
@@ -20,6 +23,7 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
+    # Error checking for arguments passed in 
     if not args.key:
         raise ValueError("Use --key to input a Dolby.io API Key")
 
@@ -60,7 +64,9 @@ if __name__ == "__main__":
             temp = str(comment.link_id).split('_', 1)
             link = temp[1]
             submission = reddit.submission(link)
+            # Keeps track of comments replied to so it doesn't run forever
             if str(submission.url).find("https://v.redd.it/") != -1 and comment.link_id not in replied_to:
+                # Dolby enhances the video
                 redditVid = Downloader(max_q=True)
                 redditVid.url = str(submission.url)
                 redditVid.download()
@@ -70,6 +76,7 @@ if __name__ == "__main__":
                 dolbyEnhancement = enhanceVideo(inputFile, args.key)
                 dolbyEnhancement.main()
 
+                # Outputs enhanced video
                 with open(os.path.join(path + "/" + "outfile.mp4"), 'rb') as uploadFile:
 
                     file_processed = {
@@ -90,6 +97,7 @@ if __name__ == "__main__":
 
                 replied_to.append(comment.link_id)
 
+                # Goes through every file in directory with .mp4 and deletes it
                 for file in glob(pathList + "*.mp4"):
                     os.remove(os.path.join(path + "/" + file))
 
