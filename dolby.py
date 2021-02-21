@@ -1,9 +1,7 @@
-import os
 import time
 import json
 import shutil
 import logging
-import argparse
 import requests
 
 
@@ -76,6 +74,7 @@ class enhanceVideo:
             response.raw.decode_content = True
             with open(outfileName, "wb") as outfileName:
                 shutil.copyfileobj(response.raw, outfileName)
+                outfileName.close()
 
     def main(self):
         dlb_in = "dlb://in/enhance"
@@ -96,3 +95,4 @@ class enhanceVideo:
         print("Downloading file to directory..")
         self.downloadEnhancedClip(dlb_out, "outfile.mp4")
         print("File downloaded!")
+
