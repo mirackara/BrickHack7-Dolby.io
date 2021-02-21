@@ -17,4 +17,4 @@ Twitter Bot Functionality:
 
 Dependencies:
     You need Python 3 and above.
-    YOu need to install ffmpeg as reddit.py uses redvid.
+    Yuu need to install ffmpeg because reddit.py uses redvid.
