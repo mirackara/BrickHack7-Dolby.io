@@ -152,7 +152,7 @@ class VideoTweet(object):
 
         req = requests.post(url=POST_TWEET_URL, data=request_data, auth=oauth)
         print(req.json())
-
+ 
 
     def main(self):
         videoTweet = VideoTweet(VIDEO_FILENAME)
