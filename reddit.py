@@ -1,177 +1,104 @@
 import os
+import argparse
+import praw
 import time
 import json
-import shutil
-import logging
-import argparse
-import requests
-import praw
 from redvid import Downloader
 from glob import glob
 from dolby import *
 
-os.environ["DOLBYIO_API_KEY"] = "laPVb2EPkdXSBayHQDHCj4IbkqQAhFKH"
-class App:
-    def __init__(self):
-        self.parser = argparse.ArgumentParser(description="sample dolby.io app for enhancing media file")
-        self.parser.add_argument("input_file", help="local file path for an input file")
-        self.parser.add_argument("output_file", help="local file path for writing output file")
-        self.parser.add_argument("--info", help="INFO debugging output", action="store_true")
-        self.parser.add_argument("--debug", help="DEBUG output", action="store_true")
-        self.parser.add_argument("--key", help="Dolby.io Media Processingn API Key", default="")
-        self.parser.add_argument("--wait", help="Seconds to wait in between status checks", default=6)
+if __name__ == "__main__":
 
-        self.args = self.parser.parse_args()
+    # Arguments made to pass in: Dobli API key, reddit usernname, password, client id, client secret, bot name, streamable email, streamable password
 
-        if self.args.info:
-            logging.basicConfig(level=logging.INFO)
+    parser = argparse.ArgumentParser(description="Reddit bot that enhances a post if it is a video hosted on Reddit")
+    parser.add_argument("--key", help="Dolby.io Media Processing API Key", default="")
+    parser.add_argument("--user", help="Username to reddit bot")
+    parser.add_argument("--passw", help="Password to reddit bot")
+    parser.add_argument("--id", help="Client id")
+    parser.add_argument("--secret", help="Client secret")
+    parser.add_argument("--name", help="Name of the bot")
+    parser.add_argument("--strmail", help="Streamable account email")
+    parser.add_argument("--strpass", help="Streamable account password")
 
-        if self.args.debug:
-            logging.basicConfig(level=logging.DEBUG)
+    args = parser.parse_args()
 
-        self.args.key = self.args.key or os.environ.get("DOLBYIO_API_KEY")
-        if not self.args.key:
-            raise ValueError("Use --key or set environment variable DOLBYIO_API_KEY")
+    # Error checking for arguments passed in 
+    if not args.key:
+        raise ValueError("Use --key to input a Dolby.io API Key")
 
-    def _get_url(self, path):
-        return "https://api.dolby.com/" + path
+    if not args.user:
+        raise ValueError("Use --user to input username to Reddit bot account")
 
-    def _get_headers(self):
-        return {
-            "x-api-key": self.args.key,
-            "Content-Type": "application/json",
-            "Accept": "application/json",
-        }
+    if not args.passw:
+        raise ValueError("Use --passw to input password to Reddit bot account")
 
-    def post_media_input(self, input_path, name):
-        url = self._get_url("/media/input")
-        headers = self._get_headers()
-        body = {
-            "url": name,
-        }
-        response = requests.post(url, json=body, headers=headers)
-        response.raise_for_status()
-        data = response.json()
-        presigned_url = data["url"]
-        logging.info("Uploading {0} to {1}".format(input_path, presigned_url))
-        with open(input_path, "rb") as input_file:
-            requests.put(presigned_url, data=input_file)
+    if not args.id:
+        raise ValueError("Use --id to input client_id")
 
-    def post_media_enhance(self, input_url, output_url):
-        url = self._get_url("/media/enhance")
-        headers = self._get_headers()
-        # Customization
-        #
-        # If you want to change the behavior of the enhance process you
-        # can add parameters found in the API reference to this body.
-        # https://dolby.io/developers/media-processing/api-reference/enhance
-        body = {"input": input_url, "output": output_url}
+    if not args.secret:
+        raise ValueError("Use --secret to input client_secret")
 
-        response = requests.post(url, json=body, headers=headers)
-        response.raise_for_status()
-        return response.json()["job_id"]
+    if not args.name:
+        raise ValueError("Use --name to input bot name")
 
-    def get_media_enhance(self, job_id):
-        url = self._get_url("/media/enhance")
-        headers = self._get_headers()
-        params = {"job_id": job_id}
+    if not args.strmail:
+        raise ValueError("Use --strmail to input Streamable email")
 
-        response = requests.get(url, params=params, headers=headers)
-        response.raise_for_status()
-        data = response.json()
-        if data["status"] not in {"Pending", "Running"}:
-            return data
-        # Keep on retrying untill job is complete
-        logging.debug(data["status"])
-        print(".")
-        time.sleep(self.args.wait)
-        return self.get_media_enhance(job_id)
+    if not args.strmail:
+        raise ValueError("Use --strpass to input Streamable password")
 
-    def get_media_output(self, dlb_out, output_path):
-        url = self._get_url("/media/output")
-        headers = self._get_headers()
-        params = {"url": dlb_out}
+    reddit = praw.Reddit(username=args.user, password=args.passw, client_id=args.id, client_secret=args.secret, user_agent=args.name)
 
-        with requests.get(url, params=params, headers=headers, stream=True) as response:
-            response.raise_for_status()
-            response.raw.decode_content = True
-            logging.info("Downloading from {0} into {1}".format(response.url, output_path))
-            with open(output_path, "wb") as output_file:
-                shutil.copyfileobj(response.raw, output_file)
+    # Phrase to activate bot
+    keyphrase = '!enhancebotdolby.io'
 
-    def upload(self):
-        # First we upload the input file to /media/input
-        dlb_in = "dlb://in/enhance"
-        print("Uploading file to location: {}".format(dlb_in))
-        self.post_media_input(self.args.input_file, dlb_in)
-        print("Uploaded file to location: {}".format(dlb_in))
+    # List to keep track of which comments were replied to already
+    replied_to = []
 
-        # Next, we start /media/enhance to begin enhancing
-        dlb_out = "dlb://out/enhance"
-        job_id = self.post_media_enhance(dlb_in, dlb_out)
-        print("Job running with job_id: {}".format(job_id))
+    # Sub to live on
+    subreddit = reddit.subreddit('All')
+    for comment in subreddit.stream.comments():
+        if keyphrase in comment.body:
+            # If the keyphrase is found, respond to it with code here...
+            temp = str(comment.link_id).split('_', 1)
+            link = temp[1]
+            submission = reddit.submission(link)
+            # Keeps track of comments replied to so it doesn't run forever
+            if str(submission.url).find("https://v.redd.it/") != -1 and comment.link_id not in replied_to:
+                # Dolby enhances the video
+                redditVid = Downloader(max_q=True)
+                redditVid.url = str(submission.url)
+                redditVid.download()
+                path = str(os.path.dirname(__file__))
+                pathList = str(os.listdir(os.path.dirname(__file__)))
+                inputFile = glob(pathList + "*.mp4")[0]
+                dolbyEnhancement = enhanceVideo(inputFile, args.key)
+                dolbyEnhancement.main()
 
-        # We need to check for results of the enhance process and display results
-        # to the terminal.
-        results = self.get_media_enhance(job_id)
-        print("Job complete: {}".format(json.dumps(results, indent=4, sort_keys=True)))
+                # Outputs enhanced video
+                with open(os.path.join(path + "/" + "outfile.mp4"), 'rb') as uploadFile:
 
-        # When complete, we can download the result and save it locally
-        print("Downloading file from location: {}".format(dlb_out))
-        self.get_media_output(dlb_out, self.args.output_file)
-        print("File available: {}".format(self.args.output_file))
+                    file_processed = {
+                        'file': ("Enhanced Output", uploadFile),
+                    }
 
-    def main(self):
-        # First we upload the input file to /media/input
-        dlb_in = "dlb://in/enhance"
-        print("Uploading file to location: {}".format(dlb_in))
-        self.post_media_input(self.args.input_file, dlb_in)
-        print("Uploaded file to location: {}".format(dlb_in))
+                    response = requests.post('https://api.streamable.com/upload', auth=(args.strmail, args.strpass), files=file_processed).json()
 
-        # Next, we start /media/enhance to begin enhancing
-        dlb_out = "dlb://out/enhance"
-        job_id = self.post_media_enhance(dlb_in, dlb_out)
-        print("Job running with job_id: {}".format(job_id))
+                path = str(os.path.dirname(__file__))
+                pathList = str(os.listdir(os.path.dirname(__file__)))
 
-        # We need to check for results of the enhance process and display results
-        # to the terminal.
-        results = self.get_media_enhance(job_id)
-        print("Job complete: {}".format(json.dumps(results, indent=4, sort_keys=True)))
+                try:
+                    comment.reply("Enhanced Video Link: https://streamable.com/" + response['shortcode'])
+                except:
+                    print("Error, need to wait 2 minutes before replying again.")
+                    time.sleep(120)
+                    comment.reply("Enhanced Video Link: https://streamable.com/" + response['shortcode'])
 
-        # When complete, we can download the result and save it locally
-        print("Downloading file from location: {}".format(dlb_out))
-        self.get_media_output(dlb_out, self.args.output_file)
-        print("File available: {}".format(self.args.output_file))
+                replied_to.append(comment.link_id)
 
+                # Goes through every file in directory with .mp4 and deletes it
+                for file in glob(pathList + "*.mp4"):
+                    os.remove(os.path.join(path + "/" + file))
 
-reddit = praw.Reddit(username='enhancebot_BH', password='password', client_id='aF9EuE9d4zWsCg', client_secret='dsNKHJMFYbRzztvR7DrBZuUD8QnGLw', user_agent='enhancebot')
-
-# Phrase to activate bot
-keyphrase = '!enhancebot'
-
-# Sub to live on
-subreddit = reddit.subreddit('Bot_Test_I2R')
-for comment in subreddit.stream.comments():
-    if keyphrase in comment.body:
-        # If the keyphrase is found, respond to it with code here...
-        temp = str(comment.link_id).split('_', 1)
-        link = temp[1]
-        url = "https://www.reddit.com/r/" + str(comment.subreddit) + "/comments/" + link
-        print(url)
-        # comment.reply('Test!')
-        submission = reddit.submission(link)
-        print(submission.url)
-        if str(submission.url).find("https://v.redd.it/") != -1:
-            redditVid = Downloader(max_q=True)
-            redditVid.url = str(submission.url)
-            redditVid.download()
-            path = str(os.path.dirname(__file__))
-            pathList = str(os.listdir(os.path.dirname(__file__)))
-            print(path)
-            inputFile = glob(pathList + "*.mp4")[0]
-            dolbyEnhancment = enhanceVideo(inputFile)
-            dolbyEnhancment.printFile()
-            dolbyEnhancment.main()
-            exit(-1)
-
-
+                print("Removed temporary .mp4 files from directory.")
