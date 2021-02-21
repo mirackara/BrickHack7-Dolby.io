@@ -76,22 +76,21 @@ if __name__ == "__main__":
                         'file': ("Enhanced Output", uploadFile),
                     }
 
-                    response = requests.post('https://api.streamable.com/upload', auth=(args.strmail, args.strpass), files=file_processed)
-                    responseJson = response.json()
+                    response = requests.post('https://api.streamable.com/upload', auth=(args.strmail, args.strpass), files=file_processed).json()
 
                 path = str(os.path.dirname(__file__))
                 pathList = str(os.listdir(os.path.dirname(__file__)))
 
                 try:
-                    comment.reply("Enhanced Video Link: https://streamable.com/" + responseJson['shortcode'])
+                    comment.reply("Enhanced Video Link: https://streamable.com/" + response['shortcode'])
                 except:
                     print("Error, need to wait 2 minutes before replying again.")
                     time.sleep(120)
-                    comment.reply("Enhanced Video Link: https://streamable.com/" + responseJson['shortcode'])
+                    comment.reply("Enhanced Video Link: https://streamable.com/" + response['shortcode'])
 
                 replied_to.append(comment.link_id)
 
-                response.close()
-
                 for file in glob(pathList + "*.mp4"):
                     os.remove(os.path.join(path + "/" + file))
+
+                print("Removed temporary .mp4 files from directory.")
